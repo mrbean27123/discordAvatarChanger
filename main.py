@@ -93,19 +93,22 @@ def change_avatar(image_path):
     r = session.patch("https://discord.com/api/v9/users/@me", json=payload, headers=headers)
     all_error_messages = extract_errors(errors=r.json())
     error_text = ": ".join(all_error_messages)
+    while "Unknown Session" in error_text or "You are changing your avatar too fast" in error_text:
+        if r.status_code == 200:
+            settings.update_settings("current_avatar", image_path)
+            settings.update_settings("last_update", f"{date.today()}")
+            logger.success("Аватар успешно изменен")
+            raise SystemExit("")
+        else:
+            logger.error(f"Код: {r.status_code} Ошибка: {error_text}")
+            time.sleep(15)
+            r = session.patch("https://discord.com/api/v9/users/@me", json=payload, headers=headers)
+            all_error_messages = extract_errors(errors=r.json())
+            error_text = ": ".join(all_error_messages)
     if r.status_code == 200:
         settings.update_settings("current_avatar", image_path)
-        settings.update_settings("last_update", date.today())
+        settings.update_settings("last_update", f"{date.today()}")
         logger.success("Аватар успешно изменен")
-    elif r.status_code == 400 and "You are changing your avatar too fast" in error_text:
-        logger.error(f"Код: {r.status_code} Ошибка: {error_text}")
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            f"Слишком частые смены ника\n\n{error_text}",
-            f"{settings.TITLE} {r.status_code}",
-            16
-        )
-        logger.error(f"Ошибка: {r.status_code}")
     elif r.status_code == 401 and "Unauthorized" in error_text:
         logger.error(f"Код: {r.status_code} Ошибка: {error_text}")
         ctypes.windll.user32.MessageBoxW(
@@ -115,7 +118,7 @@ def change_avatar(image_path):
             16
         )
     else:
-        logger.error(f"Код: {r.status_code}{error_text}")
+        logger.error(f"Код: {r.status_code} Ошибка: {error_text}")
         ctypes.windll.user32.MessageBoxW(
             0,
             f"{error_text}",
@@ -143,7 +146,6 @@ def main():
         else:
             logger.error(f"{settings.DISCORD_PROCESS} не запущен")
             time.sleep(5)
-    time.sleep(5)
     images = get_images(settings.IMAGE_PATH)
     logger.debug(f"{images=}")
     logger.debug(f"{settings.RANDOM_TYPE=}")
@@ -174,7 +176,7 @@ def main():
 
             index = settings.current_image_list.index(settings.current_avatar)
             all_index = len(settings.current_image_list) - 1
-            logger.debug(f"{index}/{all_index}")
+            logger.debug(f"Current index: {index}/{all_index}")
 
             elements_after = settings.current_image_list[index + 1:]
             if elements_after:
